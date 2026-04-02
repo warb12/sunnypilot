@@ -37,7 +37,7 @@ X_EGO_COST = 0.
 V_EGO_COST = 0.
 A_EGO_COST = 0.
 J_EGO_COST = 15.
-A_CHANGE_COST = 375.
+A_CHANGE_COST = 275.
 DANGER_ZONE_COST = 100.
 CRASH_DISTANCE = .25
 LEAD_DANGER_FACTOR = 0.75
@@ -272,10 +272,10 @@ class LongitudinalMpc:
     v_ego = self.x0[1]
 
     # Dynamically scale jerk costs based on speed to fix takeoff delay
-    # while maintaining smoothness at higher speeds. 
+    # while maintaining smoothness at higher speeds.
     # Transition is very sharp so stop-and-go rolling remains perfectly smooth.
-    dynamic_a_change = np.interp(v_ego, [0.0, 0.5, 1.0], [50., 375., A_CHANGE_COST])
-    dynamic_j_ego = np.interp(v_ego, [0.0, 0.5, 1.0], [5., 15., J_EGO_COST])
+    dynamic_a_change = np.interp(v_ego, [0.0, 1.0], [50., A_CHANGE_COST])
+    dynamic_j_ego = np.interp(v_ego, [0.0, 1.0], [5., J_EGO_COST])
 
     a_change_cost = dynamic_a_change if prev_accel_constraint else 0
     cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, jerk_factor * a_change_cost, jerk_factor * dynamic_j_ego]
@@ -325,10 +325,10 @@ class LongitudinalMpc:
     if t_follow is None:
       t_follow = get_T_FOLLOW(personality)
     v_ego = self.x0[1]
-    
+
     # Update cost weights every frame for dynamic speed logic
     self.set_weights(personality=personality)
-    
+
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
     if a_cruise_min is None:
