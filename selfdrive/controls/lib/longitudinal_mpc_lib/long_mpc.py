@@ -72,11 +72,11 @@ def get_jerk_factor(personality=log.LongitudinalPersonality.standard):
 
 def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard):
   if personality==log.LongitudinalPersonality.relaxed:
-    return 1.55
+    return 1.70
   elif personality==log.LongitudinalPersonality.standard:
-    return 1.25
+    return 1.45
   elif personality==log.LongitudinalPersonality.aggressive:
-    return 1.05
+    return 1.20
   else:
     raise NotImplementedError("Longitudinal personality not supported")
 
@@ -269,8 +269,16 @@ class LongitudinalMpc:
 
   def set_weights(self, prev_accel_constraint=True, personality=log.LongitudinalPersonality.standard):
     jerk_factor = get_jerk_factor(personality)
-    a_change_cost = A_CHANGE_COST if prev_accel_constraint else 0
-    cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, jerk_factor * a_change_cost, jerk_factor * J_EGO_COST]
+    v_ego = self.x0[1]
+
+    # Dynamically scale jerk costs based on speed to fix takeoff delay
+    # while maintaining smoothness at higher speeds. 
+    # Transition is very sharp so stop-and-go rolling remains perfectly smooth.
+    dynamic_a_change = np.interp(v_ego, [0.0, 0.5, 1.0], [50., 375., A_CHANGE_COST])
+    dynamic_j_ego = np.interp(v_ego, [0.0, 0.5, 1.0], [5., 15., J_EGO_COST])
+
+    a_change_cost = dynamic_a_change if prev_accel_constraint else 0
+    cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, jerk_factor * a_change_cost, jerk_factor * dynamic_j_ego]
     constraint_cost_weights = [LIMIT_COST, LIMIT_COST, LIMIT_COST, DANGER_ZONE_COST]
     self.set_cost_weights(cost_weights, constraint_cost_weights)
 
@@ -317,6 +325,10 @@ class LongitudinalMpc:
     if t_follow is None:
       t_follow = get_T_FOLLOW(personality)
     v_ego = self.x0[1]
+    
+    # Update cost weights every frame for dynamic speed logic
+    self.set_weights(personality=personality)
+    
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
     if a_cruise_min is None:
